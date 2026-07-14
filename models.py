@@ -24,7 +24,12 @@ class User(Base):
 
     # Account status
     is_active = Column(Boolean, default=True, nullable=False)
+    # --- Email verification ---
+    # A founder is only REAL once they've clicked the link we email them.
+    # This is what stops someone locking founding pricing with a burner address.
     email_verified = Column(Boolean, default=False, nullable=False)
+    verify_token = Column(String(255), nullable=True, index=True)
+    verify_token_expires = Column(DateTime, nullable=True)
 
     # Password reset
     reset_token = Column(String(255), nullable=True, index=True)

@@ -26,6 +26,14 @@ class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerifyRequest(BaseModel):
+    email: EmailStr
+
+
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str = Field(min_length=8, max_length=128)
@@ -46,8 +54,14 @@ class UserOut(BaseModel):
     id: int
     email: EmailStr
     name: Optional[str]
-    is_founder: bool
+    is_founder: bool          # stamped at signup
+    email_verified: bool      # clicked the link?
     created_at: datetime
+
+    @property
+    def founder_active(self) -> bool:
+        """Founder pricing only counts once the email is verified."""
+        return self.is_founder and self.email_verified
 
     class Config:
         from_attributes = True
@@ -76,6 +90,7 @@ class AdminUserOut(BaseModel):
     email: EmailStr
     name: Optional[str]
     is_founder: bool
+    email_verified: bool
     created_at: datetime
     last_login: Optional[datetime]
 
@@ -85,7 +100,8 @@ class AdminUserOut(BaseModel):
 
 class AdminStatsOut(BaseModel):
     total_users: int
-    founders: int
+    founders: int              # verified founders — the real number
+    unverified: int            # signed up, never clicked the link
     non_founders: int
     signups_today: int
     signups_this_week: int
