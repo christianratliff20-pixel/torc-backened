@@ -24,6 +24,63 @@ log = logging.getLogger("torc")
 # Creates the users table on first boot if it doesn't exist.
 Base.metadata.create_all(bind=engine)
 
+
+def _migrate():
+    """
+    create_all() only creates missing TABLES, not missing COLUMNS. When a new
+    field is added to the model, an existing table keeps its old shape and every
+    query blows up with 'column does not exist'.
+
+    This adds any missing columns in-place, without touching existing rows.
+    Safe to run on every boot — it checks what's actually there first.
+    """
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return  # create_all() already made it correctly
+
+    existing = {c["name"] for c in inspector.get_columns("users")}
+
+    columns = {
+        "email_verified":       "BOOLEAN NOT NULL DEFAULT FALSE",
+        "verify_token":         "VARCHAR(255)",
+        "verify_token_expires": "TIMESTAMP",
+        "reset_token":          "VARCHAR(255)",
+        "reset_token_expires":  "TIMESTAMP",
+        "is_active":            "BOOLEAN NOT NULL DEFAULT TRUE",
+        "last_login":           "TIMESTAMP",
+        "updated_at":           "TIMESTAMP",
+    }
+
+    added = []
+    with engine.begin() as conn:
+        for name, ddl in columns.items():
+            if name in existing:
+                continue
+            conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {ddl}"))
+            added.append(name)
+
+        for idx, col in [
+            ("ix_users_verify_token", "verify_token"),
+            ("ix_users_reset_token", "reset_token"),
+        ]:
+            try:
+                conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx} ON users ({col})"))
+            except Exception:
+                pass
+
+    if added:
+        log.info("migrate: added columns -> %s", ", ".join(added))
+    else:
+        log.info("migrate: schema already current")
+
+
+try:
+    _migrate()
+except Exception as e:
+    log.error("migrate failed: %s", e)
+
 app = FastAPI(title="TORC API", version="1.0.0")
 
 # --- CORS ---
