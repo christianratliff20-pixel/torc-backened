@@ -82,3 +82,19 @@ def get_current_user(
         )
 
     return user
+
+
+def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Admin-only guard. This is the REAL security boundary — the frontend
+    hiding the admin tab is cosmetic and trivially bypassed. Every admin
+    endpoint depends on this, so a non-admin gets 403 no matter what they
+    send from the browser.
+    """
+    if not settings.ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Admin access is not configured.")
+
+    if current_user.email.lower() != settings.ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Not authorized.")
+
+    return current_user

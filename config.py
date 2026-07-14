@@ -22,6 +22,11 @@ class Settings:
     # Flip to "false" in Render env vars when you close the founding window.
     FOUNDER_WINDOW_OPEN: bool = os.getenv("FOUNDER_WINDOW_OPEN", "true").lower() == "true"
 
+    # --- Admin ---
+    # The single account allowed to view /admin/* endpoints.
+    # Checked server-side on every request — the frontend gate is cosmetic only.
+    ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "").lower()
+
     # --- Frontend origin (for CORS + password reset links) ---
     # Set this to your live Netlify URL, e.g. https://legendary-pika-5dd723.netlify.app
     # or your custom domain once you have one.

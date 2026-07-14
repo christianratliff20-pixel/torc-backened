@@ -2,13 +2,14 @@ import logging
 import secrets
 from datetime import datetime, timedelta
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 import models, schemas
 from auth import (
     create_access_token,
+    get_admin_user,
     get_current_user,
     hash_password,
     verify_password,
@@ -237,3 +238,63 @@ def delete_me(
     db.delete(current_user)
     db.commit()
     return schemas.MessageResponse(message="Account deleted.")
+
+
+# ---------------- Admin ----------------
+
+@app.get("/admin/stats", response_model=schemas.AdminStatsOut)
+def admin_stats(
+    admin: models.User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Everyone who has signed up, plus the counts that matter.
+    Locked to ADMIN_EMAIL — enforced here on the server, not in the browser.
+    """
+    now = datetime.utcnow()
+    start_of_today = datetime(now.year, now.month, now.day)
+    week_ago = now - timedelta(days=7)
+
+    users = (
+        db.query(models.User)
+        .order_by(models.User.created_at.desc())
+        .all()
+    )
+
+    founders = sum(1 for u in users if u.is_founder)
+
+    return schemas.AdminStatsOut(
+        total_users=len(users),
+        founders=founders,
+        non_founders=len(users) - founders,
+        signups_today=sum(1 for u in users if u.created_at >= start_of_today),
+        signups_this_week=sum(1 for u in users if u.created_at >= week_ago),
+        founder_window_open=settings.FOUNDER_WINDOW_OPEN,
+        users=[schemas.AdminUserOut.model_validate(u) for u in users],
+    )
+
+
+@app.get("/admin/export")
+def admin_export(
+    admin: models.User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """
+    CSV of every user. Useful for bulk-importing into Kit, or as a backup
+    of who your founders are independent of the database.
+    """
+    users = db.query(models.User).order_by(models.User.created_at.asc()).all()
+
+    lines = ["email,name,is_founder,created_at,last_login"]
+    for u in users:
+        name = (u.name or "").replace(",", " ")
+        last = u.last_login.isoformat() if u.last_login else ""
+        lines.append(
+            f"{u.email},{name},{u.is_founder},{u.created_at.isoformat()},{last}"
+        )
+
+    return Response(
+        content="\n".join(lines),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=torc-users.csv"},
+    )

@@ -67,3 +67,27 @@ class MessageResponse(BaseModel):
     message: str
     # Only populated when RESEND_API_KEY is not configured (local/testing).
     debug_reset_token: Optional[str] = None
+
+
+# ---------- Admin ----------
+
+class AdminUserOut(BaseModel):
+    id: int
+    email: EmailStr
+    name: Optional[str]
+    is_founder: bool
+    created_at: datetime
+    last_login: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+class AdminStatsOut(BaseModel):
+    total_users: int
+    founders: int
+    non_founders: int
+    signups_today: int
+    signups_this_week: int
+    founder_window_open: bool
+    users: list[AdminUserOut]
